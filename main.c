@@ -4,28 +4,30 @@
 #include "mmu.h"
 
 int main() {
-    printf("--- Start emulatora Game Boya z modulem MMU ---\n\n");
+    printf("--- Start emulatora Game Boya - Test Zapisu do RAM ---\n\n");
     GameBoy_CPU cpu = {0};
     cpu.pc = 0x0000;
-    cpu.a = 2; 
+    
+    // Ustawiamy rejestr A na fajną wartość do zapisu (np. 0xAB)
+    cpu.a = 0xAB; 
 
-    // Nasz program testowy jako tablica bajtów (ROM)
+    // Program testowy:
     uint8_t boot_code[] = {
-        0x3D,       // 0x0000: DEC A
-        0x20, -3,   // 0x0001: JR NZ, -3
-        0x42        // 0x0003: Nieznana instrukcja (Koniec)
+        0x21, 0x00, 0xC0, // 0x0000: LD HL, 0xC000 (Zapisze 0xC000 do HL)
+        0x77,             // 0x0003: LD (HL), A   (Zapisze wartość 0xAB pod adres 0xC000)
+        0x42              // 0x0004: Koniec programu
     };
 
-    // Ładujemy nasz wirtualny ROM do pamięci od adresu 0x0000
     mmu_load_rom(0x0000, boot_code, sizeof(boot_code));
 
-    // Test: To ostrzeżenie powinno nadal się pojawić, bo mmu_write chroni ROM!
-    mmu_write(0x1000, 0xFF); 
-
-    // Wykonujemy pętlę procesora
-    for (int i = 0; i < 6; i++) {
+    // Wykonujemy 3 kroki
+    for (int i = 0; i < 3; i++) {
         cpu_step(&cpu);
     }
 
+    // Na koniec sprawdzimy, czy wartość faktycznie znalazła się w pamięci RAM!
+    printf("\nWeryfikacja pamięci: pod adresem 0xC000 znajduje się wartość: 0x%02X\n", mmu_read(0xC000));
+
     return 0;
 }
+

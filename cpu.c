@@ -91,6 +91,30 @@ void cpu_step(GameBoy_CPU *cpu) {
                 cpu->total_cycles += 16;
             }
             break;
+        
+            case 0x77: // LD (HL), A (Zapisz zawartość rejestru A pod adres z pary HL)
+            {
+                // Wykorzystujemy mmu_write do bezpiecznego zapisu
+                mmu_write(cpu->hl, cpu->a);
+                
+                printf("[0x%04X] Wykonano: LD (HL), A (Zapisano wartość 0x%02X pod adres HL: 0x%04X)\n", 
+                       current_pc, cpu->a, cpu->hl);
+                       
+                cpu->total_cycles += 8; // Ta operacja trwa 8 cykli
+            }
+            break;
+
+            case 0x21: // LD HL, d16 (Załaduj 16-bitową wartość do rejestru HL)
+            {
+                uint8_t low = mmu_read(cpu->pc);   cpu->pc++;
+                uint8_t high = mmu_read(cpu->pc);  cpu->pc++;
+                cpu->hl = (high << 8) | low;
+                
+                printf("[0x%04X] Wykonano: LD HL, 0x%04X\n", current_pc, cpu->hl);
+                cpu->total_cycles += 12;
+            }
+            break;
+
 
         default:
             printf("\n[BLAD] Nieznana instrukcja: 0x%02X na adresie: 0x%04X\n", opcode, current_pc);
