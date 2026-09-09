@@ -7,45 +7,55 @@
 #include "video.h"
 
 int main(int argc, char* argv[]) {
-    printf("--- Uruchamianie ekranu sterowanego przez procesor ---\n");
+    printf("--- Emulator Game Boya - Pelne uruchomienie BOOT ROM ---\n\n");
 
     if (!video_init()) return 1;
 
     GameBoy_CPU cpu = {0};
-    cpu.pc = 0x0000;
-    
-    // Kolor czarny (wartość 3 w naszej palecie) wpisujemy do rejestru A
-    cpu.a = 3; 
+    cpu.pc = 0x0000; 
 
-    // Program rysujący linię w pamięci VRAM:
-    uint8_t boot_code[] = {
-        0x21, 0x00, 0x80, // 0x0000: LD HL, 0x8000  (Ustaw cel na start ekranu)
-        0x77,             // 0x0003: LD (HL), A    (Zapal piksel na czarno)
-        0x23,             // 0x0004: INC HL        (Przejdź do następnego piksela)
-        0xC3, 0x03, 0x00  // 0x0005: JP 0x0003     (Skocz z powrotem do rysowania kolejnego piksela!)
-    };
+    // Wczytujemy plik Boot ROM
+    FILE *boot_file = fopen("dmg_boot.bin", "rb");
+    if (boot_file == NULL) {
+        printf("[BLAD] Nie znaleziono pliku dmg_boot.bin!\n");
+        video_shutdown();
+        return 1;
+    }
 
-    mmu_load_rom(0x0000, boot_code, sizeof(boot_code));
+    uint8_t boot_buffer[256];
+    size_t bytes_read = fread(boot_buffer, 1, 256, boot_file);
+    fclose(boot_file);
+
+    mmu_load_rom(0x0000, boot_buffer, bytes_read);
+    mmu_inject_nintendo_logo(); // <-- DODAJ TĘ LINIĘ! Spowoduje to "włożenie" wirtualnej gry z logo do emulatora
+    printf("Wczytano %zu bajtow. Rozpoczynanie emulacji sprzętowej...\n\n", bytes_read);
 
     bool running = true;
     SDL_Event event;
+    bool vram_cleared_msg = false;
 
     while (running) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) running = false;
         }
 
-        // Wykonujemy np. 40 instrukcji procesora na jedną klatkę ekranu,
-        // aby rysowanie działo się szybciej i było widoczne dla oka
-        for (int i = 0; i < 40; i++) {
+        // Wykonujemy 1000 instrukcji procesora na klatkę (ok. 16ms),
+        // dzięki czemu pętla 8000 powtórzeń minie w ułamku sekundy!
+        for (int i = 0; i < 1000; i++) {
+            
+            // Informacja, kiedy procesor opuści pętlę czyszczenia VRAM (osiągnie adres 0x000C)
+            if (cpu.pc == 0x000C && !vram_cleared_msg) {
+                printf("\n[SUKCES] VRAM wyczyszczony! Rejestr HL zszedł poniżej 0x8000.\n");
+                printf("Procesor przeszedł do konfiguracji układu AUDIO pod adres 0x000C.\n\n");
+                vram_cleared_msg = true;
+            }
+
             cpu_step(&cpu);
         }
 
-        // Przepisujemy pamięć VRAM na ekran i odświeżamy okno
         video_render_vram();
         video_update();
-
-        SDL_Delay(16); 
+        SDL_Delay(16); // Standardowe 60 klatek na sekundę
     }
 
     video_shutdown();
