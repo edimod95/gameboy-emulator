@@ -1,56 +1,53 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdlib.h>
-#include <time.h>
 #include <SDL2/SDL.h>
 #include "cpu.h"
 #include "mmu.h"
 #include "video.h"
 
 int main(int argc, char* argv[]) {
-    printf("--- Uruchamianie ekranu graficznego Game Boya ---\n");
-    srand(time(NULL));
+    printf("--- Uruchamianie ekranu sterowanego przez procesor ---\n");
 
-    if (!video_init()) {
-        printf("Nie udalo sie zainicjalizowac wyswietlacza.\n");
-        return 1;
-    }
+    if (!video_init()) return 1;
 
     GameBoy_CPU cpu = {0};
     cpu.pc = 0x0000;
+    
+    // Kolor czarny (wartość 3 w naszej palecie) wpisujemy do rejestru A
+    cpu.a = 3; 
+
+    // Program rysujący linię w pamięci VRAM:
+    uint8_t boot_code[] = {
+        0x21, 0x00, 0x80, // 0x0000: LD HL, 0x8000  (Ustaw cel na start ekranu)
+        0x77,             // 0x0003: LD (HL), A    (Zapal piksel na czarno)
+        0x23,             // 0x0004: INC HL        (Przejdź do następnego piksela)
+        0xC3, 0x03, 0x00  // 0x0005: JP 0x0003     (Skocz z powrotem do rysowania kolejnego piksela!)
+    };
+
+    mmu_load_rom(0x0000, boot_code, sizeof(boot_code));
 
     bool running = true;
     SDL_Event event;
 
-    // Główna pętla emulatora działająca w czasie rzeczywistym
     while (running) {
-        // 1. Obsługa zamykania okna
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                running = false;
-            }
+            if (event.type == SDL_QUIT) running = false;
         }
 
-        // 2. Generowanie retro szumu na ekranie (każdy piksel losuje 1 z 4 kolorów)
-        for (int y = 0; y < SCREEN_HEIGHT; y++) {
-            for (int x = 0; x < SCREEN_WIDTH; x++) {
-                uint8_t random_color = rand() % 4;
-                video_draw_pixel(x, y, random_color);
-            }
+        // Wykonujemy np. 40 instrukcji procesora na jedną klatkę ekranu,
+        // aby rysowanie działo się szybciej i było widoczne dla oka
+        for (int i = 0; i < 40; i++) {
+            cpu_step(&cpu);
         }
 
-        // 3. Wykonaj krok procesora (na razie puste NOPy)
-        cpu_step(&cpu);
-
-        // 4. Odśwież obraz w oknie
+        // Przepisujemy pamięć VRAM na ekran i odświeżamy okno
+        video_render_vram();
         video_update();
 
-        // Małe opóźnienie, żeby procesor nie zużywał 100% procesora komputera
-        SDL_Delay(16); // ~60 klatek na sekundę
+        SDL_Delay(16); 
     }
 
-    printf("Zamykanie emulatora...\n");
     video_shutdown();
     return 0;
 }

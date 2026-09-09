@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include "mmu.h"
 
-// Definiujemy rzeczywistą tablicę pamięci 64KB jako prywatną dla tego pliku
-static uint8_t bus_memory[0x10000];
+uint8_t bus_memory[0x10000];
 
 uint8_t mmu_read(uint16_t address) {
     // Na tym etapie po prostu zwracamy wartość z tablicy

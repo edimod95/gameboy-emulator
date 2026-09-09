@@ -15,5 +15,6 @@ void video_update(void);
 void video_clear(void);
 void video_draw_pixel(int x, int y, uint8_t color_index);
 void video_shutdown(void);
+void video_render_vram(void);
 
 #endif

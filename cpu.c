@@ -14,7 +14,7 @@ bool cpu_get_flag(GameBoy_CPU *cpu, uint8_t flag) {
 
 void cpu_step(GameBoy_CPU *cpu) {
     uint16_t current_pc = cpu->pc; 
-    uint8_t opcode = mmu_read(cpu->pc); // Uzywamy bezpiecznego odczytu przez MMU
+    uint8_t opcode = mmu_read(cpu->pc); 
     cpu->pc++; 
 
     switch (opcode) {
@@ -29,6 +29,16 @@ void cpu_step(GameBoy_CPU *cpu) {
                 uint8_t high = mmu_read(cpu->pc);  cpu->pc++;
                 cpu->bc = (high << 8) | low;
                 printf("[0x%04X] Wykonano: LD BC, 0x%04X\n", current_pc, cpu->bc);
+                cpu->total_cycles += 12;
+            }
+            break;
+
+        case 0x21: // LD HL, d16
+            {
+                uint8_t low = mmu_read(cpu->pc);   cpu->pc++;
+                uint8_t high = mmu_read(cpu->pc);  cpu->pc++;
+                cpu->hl = (high << 8) | low;
+                printf("[0x%04X] Wykonano: LD HL, 0x%04X\n", current_pc, cpu->hl);
                 cpu->total_cycles += 12;
             }
             break;
@@ -49,6 +59,14 @@ void cpu_step(GameBoy_CPU *cpu) {
                            current_pc, offset);
                     cpu->total_cycles += 8;
                 }
+            }
+            break;
+
+        case 0x23: // INC HL
+            {
+                cpu->hl++;
+                printf("[0x%04X] Wykonano: INC HL (Nowa wartość HL: 0x%04X)\n", current_pc, cpu->hl);
+                cpu->total_cycles += 8;
             }
             break;
 
@@ -81,6 +99,15 @@ void cpu_step(GameBoy_CPU *cpu) {
             }
             break;
 
+        case 0x77: // LD (HL), A
+            {
+                mmu_write(cpu->hl, cpu->a);
+                printf("[0x%04X] Wykonano: LD (HL), A (Zapisano 0x%02X pod adres 0x%04X)\n", 
+                       current_pc, cpu->a, cpu->hl);
+                cpu->total_cycles += 8;
+            }
+            break;
+
         case 0xC3: // JP nn
             {
                 uint8_t low = mmu_read(cpu->pc);   cpu->pc++;
@@ -91,30 +118,6 @@ void cpu_step(GameBoy_CPU *cpu) {
                 cpu->total_cycles += 16;
             }
             break;
-        
-            case 0x77: // LD (HL), A (Zapisz zawartość rejestru A pod adres z pary HL)
-            {
-                // Wykorzystujemy mmu_write do bezpiecznego zapisu
-                mmu_write(cpu->hl, cpu->a);
-                
-                printf("[0x%04X] Wykonano: LD (HL), A (Zapisano wartość 0x%02X pod adres HL: 0x%04X)\n", 
-                       current_pc, cpu->a, cpu->hl);
-                       
-                cpu->total_cycles += 8; // Ta operacja trwa 8 cykli
-            }
-            break;
-
-            case 0x21: // LD HL, d16 (Załaduj 16-bitową wartość do rejestru HL)
-            {
-                uint8_t low = mmu_read(cpu->pc);   cpu->pc++;
-                uint8_t high = mmu_read(cpu->pc);  cpu->pc++;
-                cpu->hl = (high << 8) | low;
-                
-                printf("[0x%04X] Wykonano: LD HL, 0x%04X\n", current_pc, cpu->hl);
-                cpu->total_cycles += 12;
-            }
-            break;
-
 
         default:
             printf("\n[BLAD] Nieznana instrukcja: 0x%02X na adresie: 0x%04X\n", opcode, current_pc);
